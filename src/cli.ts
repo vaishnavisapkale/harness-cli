@@ -5,7 +5,7 @@ import { agentCommand } from './commands/agentCommand';
 import { providerCommand } from './commands/provider-command';
 
 program
-  .name('opencode')
+  .name('harness')
   .description('Coding agent cli')
   .version('0.1.0')
   .addCommand(modelsCommand)

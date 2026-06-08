@@ -7,11 +7,17 @@ export const agentCommand = new Command("agent")
   .option("-p, --prompt <prompt>", "prompt", "")
   .action(async (options) => {
     const prompt = options.prompt;
-    if(!prompt){
+    if (!prompt) {
       console.log("Please Provide a prompt using -p");
     }
-    const result = await runAgent(prompt);
-    console.log(result);
+    try {
+      const result = await runAgent(prompt);
+      console.log(result);
+    } catch (e: any) {
+      console.error(e.message);   
+      process.exit(1);
+    }
+
   });
 
 

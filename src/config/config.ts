@@ -3,7 +3,7 @@ import { homedir } from "os";
 import { AppConfig } from "../types";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, WriteStream } from "fs";
 
-const CONFIG_DIR = join(homedir(), ".opencode");
+const CONFIG_DIR = join(homedir(), ".harness");
 const CONFIG_FILE = join(CONFIG_DIR, "config.json");
 
 const DEFAULT_CONFIG: AppConfig = {

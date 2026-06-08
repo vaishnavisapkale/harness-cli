@@ -1,12 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 import { runTool, tools } from "../tools";
+import { resolveSession } from "./resolve";
+import { getProvider } from "../providers";
+import { NeutralMessage } from "../providers/types";
 
-const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY!,
-});
-const MODEL = "gemini-2.5-flash";
 
-export const BASE_SYSTEM_INSTRUCTION =`You are a coding agent working directly in the user's project.
+export const BASE_SYSTEM_INSTRUCTION = `You are a coding agent working directly in the user's project.
 
 Available tools: read_file, list_file, file_exists, edit_file, write_file.
 
@@ -18,75 +17,36 @@ How to work:
 - At the end, summarize what you ACTUALLY changed (which files), based on the tool results. Never invent success.`;
 
 export async function runAgent(prompt: string) {
-    const messages: any[] = [
-        {
-            role: "user",
-            parts: [{ text: prompt }],
-        },
-    ];
+    const { provider, apiKey, model } = resolveSession();
+    const llm = getProvider(provider);
 
-    let shouldContinue = true;
+    const messages: NeutralMessage[] = [{ role: "user", text: prompt }];
+
     let steps = 0;
-    const MAX_STEPS = 8;
+    const MAX_STEPS = 10;
 
-    while (shouldContinue) {
+    while (steps < MAX_STEPS) {
         steps++;
-        if (steps > MAX_STEPS) {
-            return "Max steps reached";
-        }
 
-        const response = await ai.models.generateContent({
-            model: MODEL,
-            contents: messages,
-            systemInstruction: BASE_SYSTEM_INSTRUCTION,
-            config:{
-            tools: [
-                {
-                    functionDeclarations: tools[0].functionDeclarations,
-                },
-            ],
-            }
-
-        } as any);
-
-        const candidate = response.candidates?.[0]?.content;
-        if (!candidate) return "No response from model";
-
-        const parts = candidate.parts || [];
-
-        // check if tool is called
-        const toolCallPart = parts.find((p: any) => p.functionCall);
-
-
-        if (!toolCallPart?.functionCall) {
-            return parts.map((p: any) => p.text || "").join("");
-        }
-
-        const { name, args } = toolCallPart.functionCall;
-        if (!name) {
-            return "Tool name missing";
-        }
-        const toolResult = runTool(name, args);
-
-        // save model step (tool request)
-        messages.push({
-            role: "model",
-            parts,
+        const { text, toolCalls } = await llm.generate({
+            model,
+            apiKey,
+            system: BASE_SYSTEM_INSTRUCTION,
+            messages,
+            tools: tools[0].functionDeclarations,
         });
 
-        // send tool result back to model
-        messages.push({
-            role: "user",
-            parts: [
-                {
-                    functionResponse: {
-                        name,
-                        response: {
-                            result: toolResult,
-                        },
-                    },
-                },
-            ],
-        });
+        if (toolCalls.length === 0) {
+            return text;
+        }
+
+        messages.push({ role: "assistant", text, toolCalls });
+
+        for (const call of toolCalls) {
+            const result = await runTool(call.name, call.args);
+            messages.push({ role: "tool", toolName: call.name, toolResult: result });
+        }
     }
+
+    return "Max steps reached";
 }

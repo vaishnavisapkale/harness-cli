@@ -7,7 +7,9 @@ import {
     mkdirSync,
 } from "fs";
 import { dirname, resolve, relative, isAbsolute } from "path";
+import { spawnSync } from "child_process";
 
+//GUARDRAIL 1
 function resolveSafe(p: string) {
     const root = process.cwd(); //current working directory
     const full = resolve(root, p) //convert relative path to absolute path
@@ -17,6 +19,17 @@ function resolveSafe(p: string) {
     }
     return full
 }
+//GUARDRAIL 2: run_command allowlist 
+const ALLOWED_COMMANDS = [
+    "bun test",
+    "bun tsc --noEmit",
+    "tsc --noEmit",
+    "bun run typecheck",
+    "bun run build",
+    "git status",
+    "git diff",
+];
+
 
 export const tools = [
     {
@@ -135,7 +148,27 @@ const toolRegistry = {
         mkdirSync(dirname(full), { recursive: true })
         writeFileSync(full, content)
         return `created ${path}`
-    }
+    },
+    run_command: ({ command }: { command: string }) => {
+        const cmd = command.trim();
+        if (/[;&|`$(){}<>\\]/.test(cmd)) {
+            return "Error: command contains forbidden shell characters";
+        }
+        const ok = ALLOWED_COMMANDS.some((c) => cmd === c || cmd.startsWith(c + " "));
+        if (!ok) {
+            return `Error: "${cmd}" not allowed. Allowed: ${ALLOWED_COMMANDS.join(", ")}`;
+        }
+        const [bin, ...args] = cmd.split(/\s+/);
+        const result = spawnSync(bin, args, {
+            cwd: process.cwd(),
+            timeout: 30_000,
+            encoding: "utf-8",
+            shell: false,
+        });
+        if (result.error) return `Error: ${result.error.message}`;
+        const out = (result.stdout || "") + (result.stderr || "");
+        return `exit code ${result.status}\n${out}`.slice(0, 5000);
+    },
 };
 export function runTool(toolName: string, args: any) {
     const tool = toolRegistry[toolName as keyof typeof toolRegistry];
