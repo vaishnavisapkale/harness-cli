@@ -1,2 +1,7 @@
-node_modules
+node_modules/
 .env
+harness
+harness-*
+dist/
+*.log
+.DS_Store

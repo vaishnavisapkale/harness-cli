@@ -1,5 +1,5 @@
 import "dotenv/config"
-import { Command } from "commander";
+import  { Command } from "commander";
 import { runAgent } from "../agent/agent";
 
 export const agentCommand = new Command("agent")

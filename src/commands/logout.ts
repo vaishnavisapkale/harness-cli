@@ -6,6 +6,9 @@ export const logoutCommand = new Command("logout")
     .requiredOption('-p, --provider <providerName>', 'Name of the provider (gemini, claude etc)', '')
     .action((options) => {
         const config = load_config();
+        if(!options.provider){
+            console.log("please mention -p providername to logout")
+        }
         if (!config.providers[options.provider]) {
             console.log(`Not logged in to ${options.provider}`);
             return;

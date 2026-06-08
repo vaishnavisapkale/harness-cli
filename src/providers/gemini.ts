@@ -1,6 +1,20 @@
 import { FunctionResponse, GoogleGenAI } from "@google/genai";
 import { Provider, GenerateInput, GenerateResult, NeutralMessage } from "./types";
 
+
+async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
+    let lastErr: any;
+    for (let i = 0; i < tries; i++) {
+        try {
+            return await fn();
+        } catch (e: any) {
+            if (![429, 500, 503].includes(e?.status)) throw e;
+            lastErr = e;
+            await new Promise((r) => setTimeout(r, 1000 * 2 ** i));
+        }
+    }
+    throw lastErr;
+}
 function toGeminiContents(message: NeutralMessage[]) {
     return message
         .map((m) => {
@@ -10,9 +24,9 @@ function toGeminiContents(message: NeutralMessage[]) {
                     parts: [{
                         functionResponse: {
                             name: m.toolName,
-                            response: 
+                            response:
                                 { result: m.toolResult ?? "" },
-                            
+
                         }
                     }]
                 }
@@ -60,17 +74,13 @@ export const geminiProvider: Provider = {
         const client = new GoogleGenAI({
             apiKey
         });
-        const response = await client.models.generateContent({
-            model,
-            contents: toGeminiContents(messages),
-            config: {
-                systemInstruction: system,
-                tools: [{
-                    functionDeclarations: tools
-                }]
-
-            }
-        });
+        const response = await withRetry(() =>
+            client.models.generateContent({
+                model,
+                contents: toGeminiContents(messages),
+                config: { systemInstruction: system, tools: [{ functionDeclarations: tools }] },
+            })
+        );
         const parts = response.candidates?.[0]?.content?.parts ?? [];
         const text = parts.map((p: any) => p.text || "").join("");
         const toolCalls = parts

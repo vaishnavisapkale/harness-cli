@@ -8,8 +8,11 @@ program
   .name('harness')
   .description('Coding agent cli')
   .version('0.1.0')
+  .action(async () => {          
+    await import("./tui");  
+    })
   .addCommand(modelsCommand)
   .addCommand(agentCommand)
   .addCommand(providerCommand);
-
+  
 program.parse();
