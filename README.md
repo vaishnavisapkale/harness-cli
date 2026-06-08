@@ -43,7 +43,7 @@ bun build ./src/cli.ts --compile --outfile harness
 mv harness /usr/local/bin/harness
 ```
 
-(During development you can skip the build and run with `bun src/cli.ts <command>`.)
+(During development you can skip the build and run with `bun src/cli.ts <command>`)
 
 ---
 
