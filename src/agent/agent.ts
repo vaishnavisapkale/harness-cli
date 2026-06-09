@@ -4,7 +4,6 @@ import { resolveSession } from "./resolve";
 import { getProvider } from "../providers";
 import { NeutralMessage } from "../providers/types";
 
-
 export type AgentEvent =
     | { type: "text"; text: string }
     | { type: "tool_call"; name: string; args: any }
