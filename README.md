@@ -32,7 +32,7 @@ The name says it: this is the *harness* around the model — intentionally small
 
 ```bash
 git clone https://github.com/vaishnavisapkale/harness-cli.git
-cd harnessCLI
+cd harness-cli
 bun install
 ```
 
@@ -43,7 +43,7 @@ bun build ./src/cli.ts --compile --outfile harness
 mv harness /usr/local/bin/harness
 ```
 
-(During development you can skip the build and run with `bun src/cli.ts <command>`.)
+(During development you can skip the build and run with `bun src/cli.ts <command>`)
 
 ---
 
