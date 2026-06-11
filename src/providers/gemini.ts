@@ -2,19 +2,25 @@ import { FunctionResponse, GoogleGenAI } from "@google/genai";
 import { Provider, GenerateInput, GenerateResult, NeutralMessage } from "./types";
 
 
-async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
     let lastErr: any;
     for (let i = 0; i < tries; i++) {
         try {
             return await fn();
         } catch (e: any) {
-            if (![429, 500, 503].includes(e?.status)) throw e;
+            const info = `${e?.status ?? ""} ${e?.code ?? ""} ${e?.message ?? e}`;
+            const retriable =
+                /\b(429|500|503)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|INTERNAL|overloaded|high demand/i.test(info);
+            if (!retriable || i === tries - 1) throw e;
             lastErr = e;
-            await new Promise((r) => setTimeout(r, 1000 * 2 ** i));
+            const wait = 1000 * 2 ** i; // 1s, 2s, 4s, 8s, 16s
+            console.error(`Transient error, retry ${i + 1}/${tries - 1} in ${wait}ms`);
+            await new Promise((r) => setTimeout(r, wait));
         }
     }
     throw lastErr;
 }
+
 function toGeminiContents(message: NeutralMessage[]) {
     return message
         .map((m) => {
