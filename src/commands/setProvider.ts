@@ -15,7 +15,7 @@ export const setProviderCommand = new Command("set")
      config.defaultProvider = options.provider;
      save_config(config);
      console.log(`Default provider set to ${options.provider}`)
-    })
+    }) 
 
 
 

@@ -8,6 +8,23 @@ export interface Session {
 }
 
 export function resolveSession(flagModel?: string): Session {
+    // for a sandbox / terminal-bench container where no login exists
+    // Set GEMINI_API_KEY (and optionally HARNESS_MODEL, HARNESS_PROVIDER) and it works
+    // without touching ~/.config. This bypasses the login flow entirely.
+    const envProvider = process.env.HARNESS_PROVIDER ?? "gemini";
+    const envKey = process.env.GEMINI_API_KEY ?? process.env.HARNESS_API_KEY;
+    if (envKey) {
+        const models: string[] = (catalog as any)[envProvider] ?? [];
+        const model = flagModel ?? process.env.HARNESS_MODEL ?? models[0];
+        if (!model) {
+            throw new Error(
+                `No model for provider "${envProvider}". Set HARNESS_MODEL or add it to model.json.`
+            );
+        }
+        return { provider: envProvider, model, apiKey: envKey };
+    }
+
+    // Normal config-based flow (after `harness providers login`)
     const cfg = load_config();
     const provider = cfg.defaultProvider;
 
@@ -31,6 +48,5 @@ export function resolveSession(flagModel?: string): Session {
         throw new Error(`Model "${model}" invalid for ${provider}. Choose: ${models.join(", ")}`)
     }
 
-    return {provider, model, apiKey: pc.apiKey }
-
+    return { provider, model, apiKey: pc.apiKey }
 }
