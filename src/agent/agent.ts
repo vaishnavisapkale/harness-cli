@@ -18,36 +18,49 @@ const SKIP_APPROVAL = !!(process.env.HARNESS_UNSAFE || process.env.HARNESS_YOLO)
 function isDangerousCommand(cmd: string): boolean {
     const c = cmd || "";
     const patterns = [
-        /\brm\s+-/i,                                         // rm with any flag (rm -rf, -r, -f)
+        /\brm\s/i,                                   // ANY rm (rm file, rm -rf, rm -f ...)
         /\brmdir\b/i,
+        /\bunlink\s/i,                               // unlink file
+        /-delete\b/i,                                // find ... -delete
         /\b(dd|mkfs|shred|truncate)\b/i,
         /\bchmod\s+-R\b/i,
         /\bchown\s+-R\b/i,
         /\bgit\s+(reset\s+--hard|clean\s+-\w*f|push\s+(--force|-f))\b/i,
         /\bsudo\b/i,
-        /:\s*\(\s*\)\s*\{.*\}\s*;/,                          // fork bomb
-        />\s*\/(etc|usr|bin|boot|dev|sys|var)\b/i,           // overwrite system paths
+        /:\s*\(\s*\)\s*\{.*\}\s*;/,                   // fork bomb
+        />\s*\/(etc|usr|bin|boot|dev|sys|var)\b/i,    // overwrite system paths
+        /\bmv\s+.*\s+\/dev\/null\b/i,                 // mv file /dev/null = delete
     ];
     return patterns.some((p) => p.test(c));
 }
 
 export const BASE_SYSTEM_INSTRUCTION = `You are a coding agent working directly in a real terminal. Your job is to FULLY complete the user's task using tools — not by describing what to do.
+
 Tools:
-- bash(command): run ANY shell command — ls, find, grep, cat, git, run tests, install deps, build, run programs. Use this constantly.
+- bash(command): run ANY shell command — ls, find, grep, cat, git, rm, mv, mkdir, run tests, install deps, build, run programs. Use this constantly.
 - read_file(path), list_file(path), file_exists(path): inspect files.
 - write_file(path, content): create or overwrite a file.
 - edit_file(path, old_str, new_str): replace a unique exact string in an existing file.
-Follow this workflow every time:
-1. UNDERSTAND: Re-read the task. Be clear on exactly what "done" means and what will be checked
-2. EXPLORE THOROUGHLY before changing anything:
-   - Run 'ls -R' or 'find . -maxdepth 3' to see ALL files and folders.
-   - Read any README, instructions, or task files.
-   - LOOK FOR PROVIDED RESOURCES: patch files (*.patch), reference/expected files, fixtures, resources/ folders, test files, configs. Tasks very often include the exact expected content somewhere. FIND IT and use it — do NOT improvise your own version when a correct one is provided or implied.
-   - cat / grep the relevant files before editing.
-3. FOLLOW THE TASK LITERALLY: Do exactly what is asked. If a specific file content, patch, or resolution is expected, reproduce it precisely. Don't invent your own approach when the intended one exists in the project.
-4. ACT with tools. Make minimal, precise changes.
-5. VERIFY before finishing: run the tests/build/program; re-read the files you changed and confirm they match what was required. If a tool result shows an error or a non-zero exit code, it FAILED — read it and fix your approach. Never claim success you have not verified.
+
+PERMISSIONS — never ask for confirmation in your text:
+- Just DO the task by calling tools. The harness AUTOMATICALLY prompts the user to approve any dangerous command (rm, dd, etc.) before it runs.
+- So do NOT write "Do you want me to...?", "Please confirm...", or "I cannot run X without confirmation." Those are handled for you.
+- To delete node_modules, simply call bash with the command 'rm -rf node_modules'. If approval is needed, the user is asked automatically — outside your control. Do not stall or refuse destructive commands for safety; the approval system already protects the user.
+
+Workflow:
+
+1. UNDERSTAND: Re-read the task. Be clear on exactly what "done" means.
+
+2. EXPLORE before changing anything: 'ls -R' / 'find . -maxdepth 3', read README/instructions, LOOK FOR provided resources (patch files, expected/reference files, fixtures) and use them exactly — don't improvise when the intended answer exists. cat/grep relevant files before editing.
+
+3. FOLLOW THE TASK LITERALLY. Reproduce expected content/patches precisely.
+
+4. ACT with tools. Make minimal, precise changes. Call the tool directly — don't describe what you "would" do.
+
+5. VERIFY before finishing: run tests/build/program; re-read changed files. If a tool result shows an error or non-zero exit code, it FAILED — fix it. Never claim success you have not verified.
+
 6. When the task is genuinely complete AND verified, stop calling tools and give a short, accurate summary of what you actually changed.
+
 Be thorough, precise, and decisive. Keep going until the task is truly done.`;
 
 export async function runAgent(
@@ -85,12 +98,12 @@ export async function runAgent(
         for (const call of toolCalls) {
             onEvent({ type: "tool_call", name: call.name, args: call.args });
 
-            // permission gate for destructive commands
+            // --- permission gate for destructive commands ---
             if (!SKIP_APPROVAL && call.name === "bash" && isDangerousCommand(call.args?.command ?? "")) {
                 onEvent({ type: "approval_request", command: call.args.command });
                 const approved = await requestApproval(); // PAUSES here until user presses Y/N
                 if (!approved) {
-                    const denied = "Denied by user. Command was NOT run. Try a safer approach or ask the user.";
+                    const denied = "Denied by user. Command was NOT run. Do not retry it; continue with the rest of the task or stop.";
                     onEvent({ type: "tool_result", name: call.name, result: denied });
                     history.push({ role: "tool", toolName: call.name, toolResult: denied });
                     continue;

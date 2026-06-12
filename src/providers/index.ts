@@ -7,6 +7,6 @@ const registry: Record<string, Provider> = {
 
 export function getProvider(name: string): Provider {
   const p = registry[name];
-  if (!p) throw new Error(`No adapter for "${name}". Add one in providers/.`);
+  if (!p) throw new Error(`Unknown provider "${name}". Available: ${Object.keys(registry).join(", ")}`);
   return p;
 }

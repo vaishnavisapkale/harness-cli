@@ -10,39 +10,31 @@ import { dirname, resolve, relative, isAbsolute } from "path";
 import { spawnSync } from "child_process";
 
 // === Bench / YOLO mode ===
-// Set HARNESS_UNSAFE=1 to drop the guardrails (for a sandbox or terminal-bench container).
-// Unset (default) keeps the safe guardrails for normal/demo use.
+// HARNESS_UNSAFE=1  -> no path sandbox, no approval prompts (benchmark container).
+// Unset (default)   -> path sandbox on for file tools; the APPROVAL GATE in agent.ts
+//                      asks the user before destructive shell commands.
 const UNSAFE = process.env.HARNESS_UNSAFE === "1";
 
-// GUARDRAIL 1: path sandbox (skipped in UNSAFE mode)
+// Path sandbox for the FILE tools (read/write/edit). Skipped in UNSAFE mode.
+// bash is intentionally NOT sandboxed here — its safety comes from the approval
+// gate in agent.ts (which asks before dangerous commands in safe mode).
 function resolveSafe(p: string) {
     const root = process.cwd();
     const full = resolve(root, p);
-    if (UNSAFE) return full; // benchmark: allow any path
+    if (UNSAFE) return full;
     const rel = relative(root, full);
     if (rel.startsWith("..") || isAbsolute(rel)) {
-        throw new Error(`Path ${p} is out of the Project.`);
+        throw new Error(`Path ${p} is out of the project.`);
     }
     return full;
 }
-
-// GUARDRAIL 2: run_command allowlist (only enforced in safe mode)
-const ALLOWED_COMMANDS = [
-    "bun test",
-    "bun tsc --noEmit",
-    "tsc --noEmit",
-    "bun run typecheck",
-    "bun run build",
-    "git status",
-    "git diff",
-];
 
 export const tools = [
     {
         functionDeclarations: [
             {
                 name: "read_file",
-                description: "read the content of the file",
+                description: "Read the content of a file.",
                 parameters: {
                     type: Type.OBJECT,
                     properties: { path: { type: Type.STRING } },
@@ -51,7 +43,7 @@ export const tools = [
             },
             {
                 name: "list_file",
-                description: "List files in a directory",
+                description: "List files in a directory.",
                 parameters: {
                     type: Type.OBJECT,
                     properties: { path: { type: Type.STRING } },
@@ -60,7 +52,7 @@ export const tools = [
             },
             {
                 name: "file_exists",
-                description: "check if the file exists",
+                description: "Check if a file exists.",
                 parameters: {
                     type: Type.OBJECT,
                     properties: { path: { type: Type.STRING } },
@@ -97,7 +89,7 @@ export const tools = [
             {
                 name: "bash",
                 description:
-                    "Run a shell command and return its stdout, stderr and exit code. Use this to explore (ls, cat, grep, find), run tests, install packages, build, and run programs.",
+                    "Run a shell command and return its stdout, stderr and exit code. Use this to explore (ls, cat, grep, find), manage files (rm, mv, mkdir), run tests, install packages, build, and run programs.",
                 parameters: {
                     type: Type.OBJECT,
                     properties: { command: { type: Type.STRING } },
@@ -108,10 +100,14 @@ export const tools = [
     },
 ];
 
-const toolRegistry = {
-    read_file: ({ path }: { path: string }) => readFileSync(resolveSafe(path), "utf-8"),
+const MAX_OUTPUT = 30_000;
 
-    list_file: ({ path }: { path: string }) => readdirSync(resolveSafe(path)).join("\n"),
+const toolRegistry = {
+    read_file: ({ path }: { path: string }) =>
+        readFileSync(resolveSafe(path), "utf-8").slice(0, MAX_OUTPUT),
+
+    list_file: ({ path }: { path: string }) =>
+        readdirSync(resolveSafe(path)).join("\n").slice(0, MAX_OUTPUT),
 
     file_exists: ({ path }: { path: string }) => String(existsSync(resolveSafe(path))),
 
@@ -121,53 +117,31 @@ const toolRegistry = {
         const content = readFileSync(full, "utf-8");
         const count = content.split(old_str).length - 1;
         if (count == 0) return `Error: old_str not found in ${path}`;
-        if (count > 1) return `Error: old_str appears ${count} times in ${path}`;
+        if (count > 1) return `Error: old_str appears ${count} times in ${path}. Make it unique.`;
         writeFileSync(full, content.replace(old_str, new_str));
         return `Edited ${path}`;
     },
 
     write_file: ({ path, content }: { path: string; content: string }) => {
         const full = resolveSafe(path);
-        // Safe mode keeps the "no overwrite" guard; UNSAFE allows overwrite (needed for real tasks).
-        if (!UNSAFE && existsSync(full)) return `Error: ${path} already exists`;
         mkdirSync(dirname(full) || ".", { recursive: true });
         writeFileSync(full, content);
         return `Wrote ${path} (${(content ?? "").length} chars)`;
     },
 
+    // bash runs ANY command via a real shell, in both modes.
+    // Destructive commands are gated by the approval prompt in agent.ts (safe mode).
     bash: ({ command }: { command: string }) => {
         const cmd = command.trim();
-
-        if (UNSAFE) {
-            // full power: run anything via a real shell
-            const r = spawnSync("bash", ["-c", cmd], {
-                cwd: process.cwd(),
-                timeout: 120_000,
-                encoding: "utf-8",
-                maxBuffer: 10 * 1024 * 1024,
-            });
-            if (r.error) return `Error: ${r.error.message}`;
-            const out = (r.stdout || "") + (r.stderr ? `\n[stderr]\n${r.stderr}` : "");
-            return `exit_code: ${r.status}\n${out}`.slice(0, 30_000);
-        }
-
-        // safe mode: block shell metachars + enforce allowlist
-        if (/[;&|`$(){}<>\\]/.test(cmd)) {
-            return "Error: command contains forbidden shell characters";
-        }
-        const ok = ALLOWED_COMMANDS.some((c) => cmd === c || cmd.startsWith(c + " "));
-        if (!ok) {
-            return `Error: "${cmd}" not allowed. Allowed: ${ALLOWED_COMMANDS.join(", ")}`;
-        }
-        const [bin, ...args] = cmd.split(/\s+/);
-        const r = spawnSync(bin, args, {
+        const r = spawnSync("bash", ["-c", cmd], {
             cwd: process.cwd(),
-            timeout: 30_000,
+            timeout: 120_000,
             encoding: "utf-8",
-            shell: false,
+            maxBuffer: 10 * 1024 * 1024,
         });
         if (r.error) return `Error: ${r.error.message}`;
-        return `exit code ${r.status}\n${(r.stdout || "") + (r.stderr || "")}`.slice(0, 5000);
+        const out = (r.stdout || "") + (r.stderr ? `\n[stderr]\n${r.stderr}` : "");
+        return `exit_code: ${r.status}\n${out}`.slice(0, MAX_OUTPUT);
     },
 };
 

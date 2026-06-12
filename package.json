@@ -1,10 +1,46 @@
 {
+  "name": "harness-terminal",
+  "version": "0.1.5",
+  "description": "Terminal AI coding agent — reads, writes, edits files and runs commands to finish coding tasks, with safety approvals. Bring your own API key.",
+  "type": "module",
+  "bin": {
+    "harness": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src/model.json"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "coding-agent",
+    "cli",
+    "gemini",
+    "terminal",
+    "developer-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vaishnavisapkale/harness-cli"
+  },
+  "license": "MIT",
+  "author": "Vaishnavi Sapkale",
+  "scripts": {
+    "dev": "bun src/cli.ts",
+    "build": "bun build ./src/cli.ts --target=node --outfile=dist/cli.js && (echo '#!/usr/bin/env node' && cat dist/cli.js) > dist/cli.tmp && mv dist/cli.tmp dist/cli.js && chmod +x dist/cli.js",
+    "prepublishOnly": "bun run build"
+  },
   "dependencies": {
     "@google/genai": "^2.8.0",
-    "@types/commander": "^2.12.5",
     "chalk": "^5.6.2",
+    "commander": "^15.0.0",
     "dotenv": "^17.4.2",
     "ink": "^7.0.5",
+    "ink-big-text": "^2.0.0",
+    "ink-gradient": "^4.0.1",
     "ink-select-input": "^6.2.0",
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
