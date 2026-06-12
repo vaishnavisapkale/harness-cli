@@ -70,13 +70,7 @@ function toGeminiContents(message: NeutralMessage[]) {
 }
 
 export const geminiProvider: Provider = {
-    async generate({
-        model,
-        apiKey,
-        system,
-        messages,
-        tools
-    }: GenerateInput): Promise<GenerateResult> {
+    async generate({model,apiKey,system,messages,tools}: GenerateInput): Promise<GenerateResult> {
         const client = new GoogleGenAI({
             apiKey
         });
@@ -89,6 +83,7 @@ export const geminiProvider: Provider = {
         );
         const parts = response.candidates?.[0]?.content?.parts ?? [];
         const text = parts.map((p: any) => p.text || "").join("");
+
         const toolCalls = parts
             .filter((p: any) => p.functionCall)
             .map((p: any) => ({ name: p.functionCall.name, args: p.functionCall.args ?? {} }));
