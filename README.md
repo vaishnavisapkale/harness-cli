@@ -1,157 +1,160 @@
 # harnessCLI
 
-> Harness a language model into a coding agent that lives in your terminal.
+> Your AI engineer in the terminal.
 
-**harnessCLI** wraps an LLM in a small agent loop and a handful of safe tools (read, edit, create files, run allowlisted commands), so it can explore a codebase and make changes — all from the command line. It has both a one-shot CLI mode and an interactive TUI.
+**harness** is an AI coding agent that reads, writes and edits your files and runs commands to finish real tasks — right where you work. No browser tabs, no copy-paste. Just tell it what you want.
 
-![harnessCLI demo](demo.gif)
+<p align="left">
+  <a href="https://www.npmjs.com/package/harness-terminal"><img alt="npm" src="https://img.shields.io/npm/v/harness-terminal?color=b65cff&label=npm"></a>
+  <a href="https://github.com/vaishnavisapkale/harness-cli/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-5cc8ff"></a>
+  <img alt="node" src="https://img.shields.io/badge/node-%3E%3D18-5fe39b">
+</p>
 
-The name says it: this is the *harness* around the model — intentionally small and hackable, a project you can read end to end, not a black box.
-
----
-
-## Features
-
-- **Agent loop** — the model thinks, calls tools, reads results, and keeps going until the task is done (with a step limit).
-- **Interactive TUI** — type a task, watch tool calls and results stream live, with conversation memory and slash commands (`/clear`, `/help`, `/exit`).
-- **Provider-agnostic core** — the agent talks a neutral message format; each provider is a small adapter. Gemini is supported today; OpenAI / Anthropic are a single adapter file away.
-- **File tools** — `read_file`, `list_file`, `file_exists`, `edit_file`, `write_file`.
-- **Sandboxed command execution** — `run_command` runs only allowlisted commands, with no shell, a timeout, and output caps.
-- **Simple config** — log in once; your provider, key, and model persist in your home directory and work from any project.
-
----
-
-## Requirements
-
-- [Bun](https://bun.sh) (v1.0+)
-- An API key for a supported provider (e.g. a Google Gemini key from Google AI Studio)
+🌐 **[Live site](https://vaishnavisapkale.github.io/harness-cli/)** · 📦 **[npm](https://www.npmjs.com/package/harness-terminal)**
 
 ---
 
 ## Install
 
 ```bash
-git clone https://github.com/vaishnavisapkale/harness-cli.git
-cd harness-cli
-bun install
+npm i -g harness-terminal
 ```
 
-Build a standalone binary named `harness` and put it on your PATH:
+Then just run:
 
 ```bash
-bun build ./src/cli.ts --compile --outfile harness
-mv harness /usr/local/bin/harness
-```
-
-(During development you can skip the build and run with `bun src/cli.ts <command>`)
-
----
-
-## Quick start
-
-```bash
-# 1. Log in to a provider (run in your shell, not the TUI)
-harness providers login -p gemini -a YOUR_GEMINI_KEY
-
-# 2. (optional) pick a model
-harness models
-
-# 3a. One-shot mode
-harness agent -p "read package.json and list the dependencies"
-
-# 3b. Interactive TUI
 harness
 ```
 
+Or try it once without installing:
+
+```bash
+npx harness-terminal
+```
+
 ---
 
-## Commands
+## Quickstart
 
-### `providers`
-```bash
-providers login  -p <name> -a <api-key>   # store key, set as default
-providers logout -p <name>                # remove a provider's key
-providers list                            # show logged-in providers
+1. **Install** it globally (above).
+2. **Add your key** — run `harness` and paste your Gemini API key when asked. Grab a free one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). It's stored locally on your machine.
+3. **Just ask** — type a task in plain English and let it work:
+
+```
+❯ add a /health route to server.ts that returns { ok: true }
 ```
 
-### `models`
+harness explores your project, edits the files, runs your tests, and reports back.
+
+---
+
+## What it does
+
+- **Works in your repo** — reads, writes and edits files and runs shell commands across your project to actually finish the task, not just suggest snippets.
+- **Asks before risky moves** — destructive commands like `rm` pause for your `Y / N` approval. Nothing dangerous runs behind your back.
+- **Switch models live** — pick your model from inside the agent with `/model`. Starts on Gemini `2.5-flash` (fast and cheap).
+- **Bring your own key** — your Gemini key, stored locally. You pay your own usage, no middleman.
+- **Chat or one-shot** — work interactively in the TUI, or fire a single headless task from any script.
+- **Resilient** — automatic retries with backoff when the model is busy, plus conversation trimming so long sessions don't blow the context window.
+
+---
+
+## Usage
+
+### Interactive (TUI)
+
 ```bash
-models                  # list models for the active provider
-models use <model>      # set the model for the active provider
+harness
 ```
 
-### `agent`
-```bash
-agent -p "<prompt>"     # one-shot task
-```
+Inside the session you can use these commands:
 
-### TUI
+| Command | What it does |
+|---------|--------------|
+| `/login` | Set or update your API key |
+| `/logout` | Remove your stored API key |
+| `/model` | Switch between available models |
+| `/clear` | Clear the screen |
+| `/help` | Show available commands |
+| `/exit` | Quit |
+
+Anything else you type is treated as a task for the agent.
+
+### Headless (one-shot)
+
+Run a single task without the UI — handy for scripts:
+
 ```bash
-harness                 # launch the interactive agent
+harness agent -p "add tests for utils.ts"
 ```
-Inside the TUI, plain text is a task for the agent; `/`-prefixed input is a command (`/clear`, `/help`, `/exit`).
 
 ---
 
 ## How it works
 
-1. `cli.ts` routes your command (or launches the TUI).
-2. `resolveSession()` reads your saved config and the model catalog (`model.json`) and produces a clean `{ provider, model, apiKey }`.
-3. `runAgent()` runs a loop in a neutral message format, emitting events. Each turn it asks the provider adapter to generate; the adapter translates to/from the provider's SDK.
-4. When the model requests tools, `runTool()` executes them behind guardrails and feeds the results back. The loop continues until the model gives a final answer or hits the step limit.
+harness runs an **agent loop**: it sends your task to the model along with a set of tools, the model decides which tool to call, harness runs it and feeds the result back, and the loop continues until the task is done.
 
-So `model.json` says *what's allowed*, your config says *what you picked*, and the agent only ever sees the resolved result.
+**Tools available to the agent:**
+
+| Tool | Purpose |
+|------|---------|
+| `read_file` | Read a file's contents |
+| `list_file` | List files in a directory |
+| `file_exists` | Check whether a path exists |
+| `edit_file` | Make a precise, unique-match edit |
+| `write_file` | Create or overwrite a file |
+| `bash` | Run a shell command |
+
+**Safety:** every potentially destructive shell command (`rm`, `git reset --hard`, `chmod -R`, and more) is caught and held at an approval gate — it only runs after you press `Y`. Deny it and the agent moves on without retrying.
 
 ---
 
-## Project structure
+## Configuration
 
+Your key and model preference are saved to a config file in your home directory. You never need to edit it by hand — `/login`, `/logout` and `/model` manage it for you.
+
+You can also point harness at a key via environment variable:
+
+```bash
+export GEMINI_API_KEY="your-key-here"
 ```
-src/
-  cli.ts              # entry — registers commands, launches TUI
-  tui.tsx             # interactive terminal UI (Ink)
-  types.ts            # config types (AppConfig, ProviderConfig)
-  tools.ts            # tool definitions + runTool (with guardrails)
-  model.json          # the catalog: provider -> [models]
-  config/config.ts    # load/save config in the home directory
-  commands/           # CLI command definitions
-  providers/          # LLM adapters (neutral <-> SDK) + registry
-  agent/              # runAgent loop + resolveSession
+
+**Models:** `gemini-2.5-flash` (default) and `gemini-2.5-pro`.
+
+---
+
+## Development
+
+harness is built with **TypeScript** and runs on **[Bun](https://bun.sh)**.
+
+```bash
+# clone
+git clone https://github.com/vaishnavisapkale/harness-cli.git
+cd harness-cli
+
+# install deps
+bun install
+
+# run from source
+bun src/cli.ts
+
+# build the distributable
+bun run build
 ```
 
 ---
 
-## Safety
+## Built with
 
-Every tool that touches the real world runs behind a guardrail, checked before the action:
+- **TypeScript** + **Bun** — runtime and tooling
+- **[Ink](https://github.com/vadimdemedes/ink)** — React for the terminal UI
+- **Gemini** (`@google/genai`) — the model behind the agent
+- **commander** — CLI argument parsing
 
-- File operations are restricted to the current project directory.
-- `write_file` refuses to overwrite an existing file (use `edit_file` instead).
-- `run_command` rejects shell metacharacters, allows only an allowlist of verification commands, runs with no shell, and enforces a timeout.
-
-If a check fails, the tool returns an error instead of acting — the agent reads it and adjusts.
-
----
-
-## Adding a provider
-
-1. Create `src/providers/<name>.ts` implementing the `Provider` interface.
-2. Register it in `src/providers/index.ts`.
-3. Add its models to `model.json`.
-
-`runAgent`, `resolveSession`, and the CLI stay unchanged.
-
----
-
-## Roadmap
-
-- [ ] OpenAI and Anthropic adapters
-- [ ] Streaming token output in the TUI
-- [ ] Per-command confirmation for `run_command`
-- [ ] More slash commands (`/model`, `/login`)
+> Benchmarked on **Terminal-Bench 2.0** via a custom Python/Harbor adapter.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT © [Vaishnavi Sapkale](https://github.com/vaishnavisapkale)
