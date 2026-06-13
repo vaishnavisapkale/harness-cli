@@ -24,17 +24,25 @@ function hasKey(): boolean {
   }
 }
 
-// Reusable banner shown on the home screen and onboarding.
+const ART = [
+  "██╗  ██╗ █████╗ ██████╗ ███╗   ██╗███████╗███████╗███████╗",
+  "██║  ██║██╔══██╗██╔══██╗████╗  ██║██╔════╝██╔════╝██╔════╝",
+  "███████║███████║██████╔╝██╔██╗ ██║█████╗  ███████╗███████╗",
+  "██╔══██║██╔══██║██╔══██╗██║╚██╗██║██╔══╝  ╚════██║╚════██║",
+  "██║  ██║██║  ██║██║  ██║██║ ╚████║███████╗███████║███████║",
+  "╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝╚══════╝",
+].join("\n");
+
 function Banner() {
   return (
     <Box flexDirection="column" marginBottom={1}>
-      <Gradient name="vice">
-        <BigText text="harness" font="simple" />
-      </Gradient>
+      <Gradient name="vice">{ART}</Gradient>
 
-      <Gradient colors={["#06B6D4", "#3B82F6", "#9D35DE"]}>
-  <Text bold>Your AI engineer in the terminal.</Text>
-</Gradient>
+      <Box marginTop={1}>
+        <Gradient colors={["#06B6D4", "#3B82F6", "#9D35DE"]}>
+          <Text bold>Your AI engineer in the terminal.</Text>
+        </Gradient>
+      </Box>
     </Box>
   );
 }
@@ -107,7 +115,8 @@ function App() {
         history.current = [];
         setLines([]);
         setKeyInput("");
-        setNeedsKey(true);
+        setNeedsKey(false); 
+        add({ kind: "system", text: "Logged out. API key removed. Run /login to add one again." });
       }
       else if (cmd === "model") {
         const cfg: any = load_config();
