@@ -15,9 +15,6 @@ import { spawnSync } from "child_process";
 //                      asks the user before destructive shell commands.
 const UNSAFE = process.env.HARNESS_UNSAFE === "1";
 
-// Path sandbox for the FILE tools (read/write/edit). Skipped in UNSAFE mode.
-// bash is intentionally NOT sandboxed here — its safety comes from the approval
-// gate in agent.ts (which asks before dangerous commands in safe mode).
 function resolveSafe(p: string) {
     const root = process.cwd();
     const full = resolve(root, p);
@@ -96,11 +93,29 @@ export const tools = [
                     required: ["command"],
                 },
             },
+            {
+                name: "ask_questions",
+                description:"ask the user a clearifying question. use BEFORE starting if the requirement is unclear",
+                parameters:{
+                    type: Type.STRING,
+                    properties:{question: {type: Type.STRING}},
+                    required: ["question"],
+                }
+            },
+            {
+                name:"create_todos",
+                description: "break a big or complex project into multiple check list",
+                parameters:{
+                    type: Type.OBJECT,
+                    properties:{tasks:{type:Type.ARRAY, items:Type.STRING}},
+                    required: ["tasks"],
+                }
+            }
         ],
     },
 ];
 
-const MAX_OUTPUT = 30_000;
+const MAX_OUTPUT = 30000;
 
 const toolRegistry = {
     read_file: ({ path }: { path: string }) =>
@@ -129,8 +144,6 @@ const toolRegistry = {
         return `Wrote ${path} (${(content ?? "").length} chars)`;
     },
 
-    // bash runs ANY command via a real shell, in both modes.
-    // Destructive commands are gated by the approval prompt in agent.ts (safe mode).
     bash: ({ command }: { command: string }) => {
         const cmd = command.trim();
         const r = spawnSync("bash", ["-c", cmd], {
@@ -143,6 +156,12 @@ const toolRegistry = {
         const out = (r.stdout || "") + (r.stderr ? `\n[stderr]\n${r.stderr}` : "");
         return `exit_code: ${r.status}\n${out}`.slice(0, MAX_OUTPUT);
     },
+    ask_question:({question}:{question:string})=>{
+        return `Question for user: ${question}`;
+    },
+   create_todos:({tasks}:{tasks:string[]})=>{
+    return `created todos: ${tasks.join(", ")}`;
+   }
 };
 
 export function runTool(toolName: string, args: any) {
