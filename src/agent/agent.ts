@@ -41,6 +41,8 @@ Tools:
 - read_file(path), list_file(path), file_exists(path): inspect files.
 - write_file(path, content): create or overwrite a file.
 - edit_file(path, old_str, new_str): replace a unique exact string in an existing file.
+- ask_question(question): ask the user a clarifying question if the requirement is unclear. Use it BEFORE starting if the requirement is unclear.
+- create_todos(tasks): break a big or complex project into multiple check list if the requirement is complex. Use it BEFORE starting if the requirement is complex.
 
 PERMISSIONS — never ask for confirmation in your text:
 - Just DO the task by calling tools. The harness AUTOMATICALLY prompts the user to approve any dangerous command (rm, dd, etc.) before it runs.
