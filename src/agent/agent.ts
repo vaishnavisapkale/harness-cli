@@ -42,7 +42,7 @@ Tools:
 - write_file(path, content): create or overwrite a file.
 - edit_file(path, old_str, new_str): replace a unique exact string in an existing file.
 - ask_question(question): ask the user a clarifying question if the requirement is unclear. Use it BEFORE starting if the requirement is unclear.
-- create_todos(tasks): break a big or complex project into multiple check list if the requirement is complex. Use it BEFORE starting if the requirement is complex.
+- create_todos(tasks): break a big or complex project into multiple check list if the requirement is complex. Use it BEFORE starting  ONLY if the requirement is complex.
 
 PERMISSIONS — never ask for confirmation in your text:
 - Just DO the task by calling tools. The harness AUTOMATICALLY prompts the user to approve any dangerous command (rm, dd, etc.) before it runs.
@@ -63,9 +63,6 @@ Workflow:
 
 6. When the task is genuinely complete AND verified, stop calling tools and give a short, accurate summary of what you actually changed.
  
-7. use ask_questions(question) to ask the user a clarifying question if the requirement is unclear. Use it BEFORE starting if the requirement is unclear.
-8. use create_todos(tasks) to break a big or complex project into multiple check list if the requirement is complex. Use it BEFORE starting if the requirement is complex.
-
 Be thorough, precise, and decisive. Keep going until the task is truly done.`;
 
 export async function runAgent(
@@ -75,7 +72,6 @@ export async function runAgent(
 ) {
     const { provider, apiKey, model } = resolveSession();
     const llm = getProvider(provider);
-
     history.push({ role: "user", text: prompt });
     let steps = 0;
     const MAX_STEPS = 50;
@@ -92,6 +88,7 @@ export async function runAgent(
         });
 
         if (toolCalls.length === 0) {
+            console.log("Agent finished with no more tool calls.");
             history.push({ role: "assistant", text });
             onEvent({ type: "done", text });
             return text;
@@ -101,6 +98,7 @@ export async function runAgent(
         history.push({ role: "assistant", text, toolCalls });
 
         for (const call of toolCalls) {
+            console.log(`Tool call: ${call.name}(${JSON.stringify(call.args)})`);
             onEvent({ type: "tool_call", name: call.name, args: call.args });
 
             // --- permission gate for destructive commands ---

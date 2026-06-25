@@ -97,7 +97,7 @@ export const tools = [
                 name: "ask_questions",
                 description:"ask the user a clearifying question. use BEFORE starting if the requirement is unclear",
                 parameters:{
-                    type: Type.STRING,
+                    type: Type.OBJECT,
                     properties:{question: {type: Type.STRING}},
                     required: ["question"],
                 }
@@ -107,7 +107,7 @@ export const tools = [
                 description: "break a big or complex project into multiple check list",
                 parameters:{
                     type: Type.OBJECT,
-                    properties:{tasks:{type:Type.ARRAY, items:Type.STRING}},
+                    properties:{tasks:{type:Type.ARRAY, items:{ type: Type.STRING }}},
                     required: ["tasks"],
                 }
             }

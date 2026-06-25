@@ -57,6 +57,7 @@ function App() {
 
   const [needsKey, setNeedsKey] = useState(!hasKey());
   const [keyInput, setKeyInput] = useState("");
+  const [keyError, setKeyError] = useState("");
 
   const [selectingModel, setSelectingModel] = useState(false);
   const [modelItems, setModelItems] = useState<{ label: string; value: string }[]>([]);
@@ -72,6 +73,12 @@ function App() {
   const saveKey = (value: string) => {
     const key = value.trim();
     if (!key) return;
+    if (key.length < 10 || /\s/.test(key)) {
+      setKeyError("That doesn't look like a valid API key. Please try again.");
+      setKeyInput("");
+      return;
+    }
+    setKeyError("");
     const cfg: any = (() => { try { return load_config() ?? {}; } catch { return {}; } })();
     cfg.providers = cfg.providers ?? {};
     cfg.defaultProvider = "gemini";
@@ -105,7 +112,7 @@ function App() {
       if (cmd === "clear") { setLines([]); history.current = []; }
       else if (cmd === "exit" || cmd === "quit") exit();
       else if (cmd === "help") add({ kind: "system", text: "/login  set API key   ·   /logout  remove key   ·   /model  switch model   ·   /clear  clear screen   ·   /exit  quit. Anything else = a task for the agent." });
-      else if (cmd === "login") { setNeedsKey(true); setKeyInput(""); }
+      else if (cmd === "login") { setNeedsKey(true); setKeyInput(""); setKeyError(""); }
       else if (cmd === "logout") {
         try {
           const cfg: any = load_config() ?? {};
@@ -147,7 +154,7 @@ function App() {
       }, history.current);
     } catch (err: any) {
       const msg = String(err?.message ?? err);
-      if (/api.?key|401|403|invalid|permission.?denied|unauthenticated|API_KEY_INVALID/i.test(msg)) {
+      if (/401|403|unauthenticated|API_KEY_INVALID|permission.?denied|api[_. ]?key/i.test(msg)) {
         add({ kind: "tool_error", text: "Your API key looks invalid or missing. Run /login to update it." });
       } else {
         add({ kind: "done", text: `Error: ${msg}` });
@@ -168,6 +175,7 @@ function App() {
           <Text color="cyan">API key ❯ </Text>
           <TextInput value={keyInput} onChange={setKeyInput} onSubmit={saveKey} mask="*" />
         </Box>
+        {keyError ? <Box marginTop={1}><Text color="red">✗ {keyError}</Text></Box> : null}
         <Box marginTop={1}><Text dimColor>Your key is stored locally. You can remove it anytime with /logout.</Text></Box>
       </Box>
     );

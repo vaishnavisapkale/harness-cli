@@ -14,7 +14,6 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
             if (!retriable || i === tries - 1) throw e;
             lastErr = e;
             const wait = 1000 * 2 ** i; // 1s, 2s, 4s, 8s, 16s
-            console.error(`Transient error, retry ${i + 1}/${tries - 1} in ${wait}ms`);
             await new Promise((r) => setTimeout(r, wait));
         }
     }
