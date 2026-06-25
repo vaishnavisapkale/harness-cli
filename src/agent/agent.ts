@@ -60,6 +60,9 @@ Workflow:
 5. VERIFY before finishing: run tests/build/program; re-read changed files. If a tool result shows an error or non-zero exit code, it FAILED — fix it. Never claim success you have not verified.
 
 6. When the task is genuinely complete AND verified, stop calling tools and give a short, accurate summary of what you actually changed.
+ 
+7. use ask_questions(question) to ask the user a clarifying question if the requirement is unclear. Use it BEFORE starting if the requirement is unclear.
+8. use create_todos(tasks) to break a big or complex project into multiple check list if the requirement is complex. Use it BEFORE starting if the requirement is complex.
 
 Be thorough, precise, and decisive. Keep going until the task is truly done.`;
 
