@@ -3,6 +3,7 @@ import { resolveSession } from "./resolve";
 import { getProvider } from "../providers";
 import { NeutralMessage } from "../providers/types";
 import { requestApproval } from "./approval";
+import { SUMMARY_SYSTEM, renderTranscript, manageContext } from "./context";
 
 export type AgentEvent =
     | { type: "text"; text: string }
@@ -72,13 +73,27 @@ export async function runAgent(
 ) {
     const { provider, apiKey, model } = resolveSession();
     const llm = getProvider(provider);
-    history.push({ role: "user", text: prompt });
+    const CONTEXT_WINDOW = 1_000_000;
+    const summarize = async (old: NeutralMessage[]): Promise<string> => {
+        const { text } = await llm.generate({
+            model, apiKey,
+            system: SUMMARY_SYSTEM,
+            messages: [{ role: "user", text: renderTranscript(old) }],
+            tools: [],
+        });
+        return text;
+    };
+     history.push({ role: "user", text: prompt });
     let steps = 0;
     const MAX_STEPS = 50;
-
+    await manageContext(history, {
+        windowTokens: CONTEXT_WINDOW,
+        triggerRatio: 0.7,
+        keepRecentMessages: 12,
+        summarize,//
+    });
     while (steps < MAX_STEPS) {
         steps++;
-
         const { text, toolCalls } = await llm.generate({
             model,
             apiKey,
@@ -88,7 +103,6 @@ export async function runAgent(
         });
 
         if (toolCalls.length === 0) {
-            console.log("Agent finished with no more tool calls.");
             history.push({ role: "assistant", text });
             onEvent({ type: "done", text });
             return text;
@@ -98,7 +112,6 @@ export async function runAgent(
         history.push({ role: "assistant", text, toolCalls });
 
         for (const call of toolCalls) {
-            console.log(`Tool call: ${call.name}(${JSON.stringify(call.args)})`);
             onEvent({ type: "tool_call", name: call.name, args: call.args });
 
             // --- permission gate for destructive commands ---
